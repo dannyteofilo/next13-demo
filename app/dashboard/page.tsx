@@ -1,119 +1,77 @@
 "use client";
 import React, { useEffect, useState } from "react";
-import axios from "axios";
-import Cookies from "js-cookie";
-import { Formik, Form, Field, ErrorMessage } from "formik";
+import { useAuthContext } from "@/context/authContext";
+import { useApi } from "@/hooks/useApi";
 
-interface FormValues {
-  title: string;
-}
-
-const DashboardPage = () => {
-  const [todos, setTodos] = useState([]);
-  const cookie = Cookies.get("authTokens");
+const DashboardPage = () => {  
   const [title, setTitle] = useState("");
+  const { getAuthTokenCookie } = useAuthContext();
+  const authTokenCookie = getAuthTokenCookie();
+  const { loading, data: todosData, error, fetchData } = useApi();
 
-  const initialValues: FormValues = {
-    title: "",
-  };
+  console.log("data: ", todosData);
+
   useEffect(() => {
-    if (cookie) {
-      getTodos();
+    if (authTokenCookie) {
+      fetchData("get", authTokenCookie);
     }
-  }, [cookie]);
+  }, [authTokenCookie]);
 
-  const getTodos = async () => {
-    try {
-      const config = {
-        method: "get",
-        url: "http://34.201.69.243/api/todo",
-        headers: {
-          Authorization: cookie && JSON.parse(cookie),
-        },
-      };
-      const response: any = await axios.request(config);
-      const { todos } = response.data;
-      setTodos(todos);
-      console.log("response: ", response);
-    } catch (err) {
-      console.error(err);
-    }
+  const handleError = (err: any) => {
+    console.error(err);
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleCreate = async (e: any) => {
     e.preventDefault();
-    console.log("form: ", title);
     try {
-      const data = JSON.stringify({
+      const requestData: any = {
         title: title,
         completed: false,
-      });
-      const config = {
-        method: "post",
-        url: "http://34.201.69.243/api/todo",
-        headers: {
-          Authorization: cookie && JSON.parse(cookie),
-          "Content-Type": "application/json",
-        },
-        data,
       };
-      const response: any = await axios.request(config);
-      console.log("response: ", response);
+
+      await fetchData("post", authTokenCookie, requestData);
+      fetchData("get", authTokenCookie);
       setTitle("");
-      getTodos();
     } catch (err) {
-      console.error(err);
+      handleError(err);
     }
   };
 
-  const handleSubmit = (values: FormValues, { resetForm }: any) => {
-    // resetForm()
-  }
-
-  const validateForm = (values: FormValues) => {
-    const errors: Partial<FormValues> = {};
-    if (values.title.length < 6) {
-      errors.title = "El titulo debe tener al menos 6 caracteres";
+  const deleteTodo = async (uid: string) => {
+    try {      
+      await fetchData("delete", authTokenCookie, { id: uid });
+      fetchData("get", authTokenCookie);
+    } catch (err) {
+      handleError(err);
     }
+  };
+
+  const handleDelete = (uid: string) => {
+    deleteTodo(uid);
   };
 
   return (
     <>
-      <h1>Todo List</h1>
-      <ul>
-        {todos.map((todo: any) => {
-          return <ul key={todo.uid}>{todo.title}</ul>;
-        })}
-      </ul>
-
-      <Formik
-        initialValues={initialValues}
-        onSubmit={handleSubmit}
-        validate={validateForm}
-      >
-        <Form>
-          <label htmlFor="">Title</label>
-          <Field type="text" name="title" />
-          <ErrorMessage
-            name="title"
-            component="div"
-            className="error"
-          ></ErrorMessage>
-          <button type="submit">Create</button>
-        </Form>
-      </Formik>
-
-      {/* <form onSubmit={handleCreate}>
-        <label htmlFor="">Title</label>
+      <h1>Todo List {todosData.total}</h1>
+      <form onSubmit={handleCreate}>
+        <label htmlFor="title">Title</label>
         <input
           type="text"
           value={title}
-          onChange={(e: any) => {
-            setTitle(e.target.value);
-          }}
+          onChange={(e) => setTitle(e.target.value)}
         />
         <button>Create</button>
-      </form> */}
+      </form>
+      <ul>
+        {todosData.todos?.map((todo: any) => (
+          <ul key={todo.uid}>
+            <div>
+              <h6>{todo.title}</h6>
+              <button onClick={() => handleDelete(todo.uid)}>Delete</button>
+            </div>
+          </ul>
+        ))}
+      </ul>
     </>
   );
 };
